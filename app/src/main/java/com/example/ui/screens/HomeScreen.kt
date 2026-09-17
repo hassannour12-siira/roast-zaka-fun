@@ -49,8 +49,6 @@ fun HomeScreen(
     val intensity by viewModel.intensity.collectAsState()
     val errorMessage by viewModel.errorMessage.collectAsState()
 
-    var linkedInUrl by remember { mutableStateOf("") }
-    var showLinkedInFallback by remember { mutableStateOf(false) }
 
     val filePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
@@ -172,7 +170,7 @@ fun HomeScreen(
                         text = if (isRecruiterMode) {
                             "Paste the job advert you are about to post. We will tell you how it reads to the people you want to hire, then rewrite the worst bits."
                         } else {
-                            "Upload your CV or drop your LinkedIn profile. We'll roast it first, then actually help you fix it."
+                            "Upload your CV, or paste it in. We'll roast it first, then actually help you fix it."
                         },
                         fontSize = 14.sp,
                         color = SlateText,
@@ -342,7 +340,6 @@ fun HomeScreen(
             ) {
                 listOf(
                     Triple(InputMethod.UPLOAD_FILE, "Upload CV", Icons.Default.UploadFile),
-                    Triple(InputMethod.LINKEDIN_PROFILE, "LinkedIn", Icons.Default.Share),
                     Triple(InputMethod.PASTE_TEXT, "Paste Text", Icons.Default.EditNote)
                 ).forEach { (method, label, icon) ->
                     val isSelected = inputMethod == method
@@ -548,91 +545,6 @@ fun HomeScreen(
                     }
                 }
 
-                InputMethod.LINKEDIN_PROFILE -> {
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(containerColor = SurfaceDark)
-                    ) {
-                        Column(modifier = Modifier.padding(16.dp)) {
-                            Text(
-                                text = "LinkedIn profile",
-                                fontWeight = FontWeight.Bold,
-                                color = Color.White,
-                                fontSize = 14.sp
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-                            OutlinedTextField(
-                                value = linkedInUrl,
-                                onValueChange = {
-                                    linkedInUrl = it
-                                    showLinkedInFallback = it.contains("linkedin.com", ignoreCase = true)
-                                },
-                                placeholder = { Text("https://www.linkedin.com/in/username", color = SlateText) },
-                                modifier = Modifier.fillMaxWidth(),
-                                singleLine = true,
-                                trailingIcon = {
-                                    Button(
-                                        onClick = { showLinkedInFallback = true },
-                                        contentPadding = PaddingValues(horizontal = 8.dp),
-                                        modifier = Modifier.padding(end = 4.dp),
-                                        colors = ButtonDefaults.buttonColors(containerColor = RescueTeal)
-                                    ) {
-                                        Text("Next", fontSize = 12.sp)
-                                    }
-                                },
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    focusedBorderColor = RescueCyan,
-                                    unfocusedBorderColor = BorderDark,
-                                    focusedTextColor = Color.White,
-                                    unfocusedTextColor = Color.White
-                                )
-                            )
-
-                            if (showLinkedInFallback || linkedInUrl.isNotBlank()) {
-                                Spacer(modifier = Modifier.height(14.dp))
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .background(MutedAmber.copy(alpha = 0.15f))
-                                        .border(1.dp, MutedAmberText.copy(alpha = 0.4f), RoundedCornerShape(8.dp))
-                                        .padding(12.dp)
-                                    ) {
-                                    Column {
-                                        Text(
-                                            text = "LinkedIn does not let apps read profiles 🔒",
-                                            color = FireAmber,
-                                            fontWeight = FontWeight.Bold,
-                                            fontSize = 13.sp
-                                        )
-                                        Text(
-                                            text = "So paste your profile text below instead: About, Experience and Skills.",
-                                            color = SlateText,
-                                            fontSize = 12.sp
-                                        )
-                                    }
-                                }
-
-                                Spacer(modifier = Modifier.height(10.dp))
-                                OutlinedTextField(
-                                    value = cvText,
-                                    onValueChange = { viewModel.onCvTextChanged(it) },
-                                    placeholder = { Text("Paste LinkedIn About, Experience, and Skills sections here...", color = SlateText) },
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(150.dp),
-                                    colors = OutlinedTextFieldDefaults.colors(
-                                        focusedBorderColor = FlameOrange,
-                                        unfocusedBorderColor = BorderDark,
-                                        focusedTextColor = Color.White,
-                                        unfocusedTextColor = Color.White
-                                    )
-                                )
-                            }
-                        }
-                    }
-                }
 
                 InputMethod.PASTE_TEXT -> {
                     Card(

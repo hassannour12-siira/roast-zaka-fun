@@ -1,5 +1,17 @@
 # What changed in this pass
 
+## Removed the LinkedIn input
+
+The LinkedIn tab is gone. It never fetched anything: LinkedIn blocks automated profile
+reads, so the "Fetch" button only ever revealed a paste box, which the Paste Text tab
+already does. Two tabs now: **Upload CV** and **Paste Text**.
+
+The hero line went with it, since it promised something the app no longer offers. Pasting
+LinkedIn profile text still works perfectly well through Paste Text, and the prompt still
+understands it.
+
+---
+
 ## New: "Apply fixes & download" on the uploaded CV
 
 On the Fixes tab there is now a card that takes the rewrites you have just read, puts them

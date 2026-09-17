@@ -34,7 +34,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 enum class InputMethod {
-    UPLOAD_FILE, LINKEDIN_PROFILE, PASTE_TEXT
+    UPLOAD_FILE, PASTE_TEXT
 }
 
 /** Who is using the app right now. The two sides analyse different documents. */
