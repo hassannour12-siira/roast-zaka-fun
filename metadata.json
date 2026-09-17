@@ -1,0 +1,6 @@
+{
+  "name": "CV Roast & Rescue",
+  "description": "Get roasted. Get rescued. Get hired. AI-powered CV and LinkedIn profile roast and actionable career rescue.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
