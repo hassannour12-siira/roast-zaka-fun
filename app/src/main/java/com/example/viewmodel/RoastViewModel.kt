@@ -392,7 +392,10 @@ class RoastViewModel(application: Application) : AndroidViewModel(application) {
                 }
 
                 val fileName = CvExporter.fileNameFor(analysis.candidate.name)
-                val bytes = DocxWriter.build(rewrite.text)
+                val bytes = DocxWriter.build(
+                    text = rewrite.text,
+                    title = "${analysis.candidate.name} - CV"
+                )
 
                 CvExporter.save(getApplication(), fileName, bytes).fold(
                     onSuccess = { destination ->

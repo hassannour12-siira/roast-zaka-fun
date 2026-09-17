@@ -1,5 +1,39 @@
 # What changed in this pass
 
+## The downloaded CV would not open in Word
+
+The exported .docx contained only three parts: `[Content_Types].xml`, `_rels/.rels` and
+`word/document.xml`. That is enough for lenient readers, which is exactly why it got
+shipped: the test round-tripped the file through the app's own DOCX reader and macOS
+`textutil` opened it without complaint. Word is far stricter and called it unreadable.
+
+The export now writes all seven parts a real .docx has:
+
+| part | why Word wants it |
+|---|---|
+| `word/_rels/document.xml.rels` | **the missing one.** Word treats a document part with no relationships part as damaged |
+| `word/styles.xml` | something real to lay the text out with |
+| `docProps/core.xml`, `docProps/app.xml` | document properties, referenced from the package relationships |
+| `<w:sectPr>` in the document | page size and margins, rather than leaving Word to guess |
+
+Five new tests enforce it, and they check structure rather than readability: every part
+present, every declared content type resolving to a part that exists, and every
+relationship target resolving to a part that exists. The old "we can read our own file"
+test is the one that let this through, so it is no longer the only check.
+
+### About the file being 4.5 KB when the original was 130 KB
+
+That part is expected and is not a fault. The CV arrives as a PDF, and only its **text**
+survives extraction: the embedded fonts, images, and layout that make up most of those
+130 KB cannot be recovered from extracted text. The export is the rewritten wording in a
+clean document, not a copy of the original with edits applied.
+
+If preserving the original formatting matters, the way to get it is to upload a **.docx**
+rather than a PDF, and have the export rewrite the text inside the original file. That is
+a different feature and is not built yet.
+
+---
+
 ## Renamed to Roastumé
 
 App label, top bar, share card and project name.
