@@ -18,7 +18,11 @@ import com.example.network.AnalysisService
 import com.example.network.ClaudeAnalysisService
 import com.example.network.GeminiAnalysisService
 import com.example.network.OpenAiAnalysisService
+import com.example.util.CvExporter
+import com.example.util.CvRewriter
 import com.example.util.DocumentExtractor
+import com.example.util.DocxWriter
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -27,12 +31,26 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 enum class InputMethod {
     UPLOAD_FILE, LINKEDIN_PROFILE, PASTE_TEXT
 }
 
 /** Who is using the app right now. The two sides analyse different documents. */
+/** Where "Apply fixes & download" has got to. */
+sealed interface ExportState {
+    data object Working : ExportState
+
+    data class Saved(
+        val destination: CvExporter.Destination,
+        val applied: Int,
+        val notApplied: List<String>
+    ) : ExportState
+
+    data class Failed(val message: String) : ExportState
+}
+
 enum class AppMode {
     /** A candidate roasting their own CV. */
     ROAST_CV,
@@ -118,6 +136,10 @@ class RoastViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _previousScore = MutableStateFlow<Int?>(null)
     val previousScore: StateFlow<Int?> = _previousScore.asStateFlow()
+
+    /** Outcome of "Apply fixes & download", or null when it has not been run. */
+    private val _exportState = MutableStateFlow<ExportState?>(null)
+    val exportState: StateFlow<ExportState?> = _exportState.asStateFlow()
 
     private var loadingCycleJob: Job? = null
 
@@ -341,6 +363,56 @@ class RoastViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    /**
+     * Rewrite the uploaded CV with the accepted fixes and save it as a .docx.
+     *
+     * The edit is a find-and-replace over the user's own text, so the download can only
+     * ever contain lines they already saw on the results screen.
+     */
+    fun applyFixesAndDownload() {
+        val analysis = _analysisResult.value ?: return
+        val originalCv = _cvText.value
+        if (originalCv.isBlank()) {
+            _exportState.value = ExportState.Failed(
+                "We no longer have the original CV text, so there is nothing to rewrite."
+            )
+            return
+        }
+
+        _exportState.value = ExportState.Working
+
+        viewModelScope.launch {
+            val state = withContext(Dispatchers.IO) {
+                val rewrite = CvRewriter.apply(originalCv, analysis)
+                if (rewrite.appliedCount == 0) {
+                    return@withContext ExportState.Failed(
+                        "None of the suggested lines could be found in your CV, so there was " +
+                            "nothing to change."
+                    )
+                }
+
+                val fileName = CvExporter.fileNameFor(analysis.candidate.name)
+                val bytes = DocxWriter.build(rewrite.text)
+
+                CvExporter.save(getApplication(), fileName, bytes).fold(
+                    onSuccess = { destination ->
+                        ExportState.Saved(
+                            destination = destination,
+                            applied = rewrite.appliedCount,
+                            notApplied = rewrite.notApplied
+                        )
+                    },
+                    onFailure = { ExportState.Failed(it.message ?: "Could not save the file.") }
+                )
+            }
+            _exportState.value = state
+        }
+    }
+
+    fun clearExportState() {
+        _exportState.value = null
+    }
+
     private fun startLoadingMessageCycle(messages: List<String> = loadingMessages) {
         loadingCycleJob?.cancel()
         loadingCycleJob = viewModelScope.launch {
@@ -354,6 +426,7 @@ class RoastViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun resetForNewRoast() {
+        _exportState.value = null
         _analysisResult.value = null
         _jobAdResult.value = null
         _jobAdText.value = ""

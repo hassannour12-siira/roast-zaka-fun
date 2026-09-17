@@ -1,5 +1,42 @@
 # What changed in this pass
 
+## New: "Apply fixes & download" on the uploaded CV
+
+On the Fixes tab there is now a card that takes the rewrites you have just read, puts them
+back into your own CV, and saves the result as a **.docx** you can open in Word or Google
+Docs.
+
+**It edits, it does not regenerate.** The rewrite is a find-and-replace over the text of
+the CV you uploaded: the rescued summary swaps in for the old one, each rewritten bullet
+replaces the line it came from, and everything else is left exactly as you wrote it. No
+second trip to the model, so the download cannot contain an employer, a date or a number
+you have not already seen on screen.
+
+Details that came out of testing:
+
+- **Matching tolerates whitespace.** PDF extraction often hard-wraps a long bullet across
+  two lines, so the line the model quotes back rarely matches the document character for
+  character. Matching is done on a whitespace-normalised view of the text and mapped back
+  to real offsets, which is what makes the wrapped case work.
+- **Suggestions that cannot be placed are reported, not dropped.** If a line cannot be
+  found the card says how many were left for you to apply by hand, rather than quietly
+  producing a file with fewer changes than you expected.
+- **Only the first occurrence of a repeated line is replaced.**
+- **Saving needs no permissions.** On Android 10 and later the file goes straight into
+  Downloads through MediaStore. Below that, scoped storage does not exist and writing to
+  Downloads would mean requesting WRITE_EXTERNAL_STORAGE, so the file is written inside
+  the app and handed to the system share sheet instead. A FileProvider is declared for
+  that path.
+- The .docx is built by hand rather than with a document library: a docx is a zip holding
+  three small XML parts, which is not worth a dependency. It is verified by reading it
+  back with the app's own DOCX reader, and by round-tripping text containing `&`, `<`,
+  quotes and control characters.
+
+13 new tests cover the rewriter, the docx writer and the exporter. 41 tests in total,
+all passing.
+
+---
+
 ## PDF upload: fixed properly this time
 
 **Symptom:** uploading a résumé did nothing, or failed.

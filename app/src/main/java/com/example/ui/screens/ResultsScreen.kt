@@ -29,6 +29,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.model.FullAnalysisResult
 import com.example.model.RoastObservation
+import com.example.util.CvExporter
+import com.example.viewmodel.ExportState
 import com.example.ui.components.*
 import com.example.ui.theme.*
 import com.example.viewmodel.RoastViewModel
@@ -43,6 +45,7 @@ fun ResultsScreen(
     val context = LocalContext.current
     val activeTab by viewModel.activeResultTab.collectAsState()
     val previousScore by viewModel.previousScore.collectAsState()
+    val exportState by viewModel.exportState.collectAsState()
 
     Column(
         modifier = modifier
@@ -179,6 +182,9 @@ fun ResultsScreen(
                 RescueTabContent(
                     result = result,
                     previousScore = previousScore,
+                    exportState = exportState,
+                    onApplyFixes = { viewModel.applyFixesAndDownload() },
+                    onDismissExport = { viewModel.clearExportState() },
                     onImproveAgain = { viewModel.prepareImproveThisOneAgain() }
                 )
             }
@@ -606,6 +612,9 @@ private fun RoastObservationItem(obs: RoastObservation) {
 private fun RescueTabContent(
     result: FullAnalysisResult,
     previousScore: Int?,
+    exportState: ExportState?,
+    onApplyFixes: () -> Unit,
+    onDismissExport: () -> Unit,
     onImproveAgain: () -> Unit
 ) {
     val context = LocalContext.current
@@ -755,6 +764,185 @@ private fun RescueTabContent(
                                 color = Color(0xFFE2E8F0),
                                 lineHeight = 18.sp
                             )
+                        }
+                    }
+                }
+            }
+        }
+
+        // Apply the fixes to the real document and hand it back.
+        item {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = SurfaceDark),
+                border = CardDefaults.outlinedCardBorder().copy(
+                    brush = Brush.horizontalGradient(listOf(RescueCyan, RescueGreen))
+                )
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(text = "📄", fontSize = 18.sp)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Get your fixed CV",
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                    }
+                    Text(
+                        text = "We put the rewritten lines back into your own CV and save it as " +
+                            "a Word file. Nothing else is changed and nothing is invented.",
+                        fontSize = 12.sp,
+                        color = SlateText,
+                        lineHeight = 17.sp
+                    )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    when (exportState) {
+                        ExportState.Working -> {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(18.dp),
+                                    strokeWidth = 2.dp,
+                                    color = RescueCyan
+                                )
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Text(
+                                    text = "Rewriting your CV...",
+                                    color = SlateText,
+                                    fontSize = 13.sp
+                                )
+                            }
+                        }
+
+                        is ExportState.Saved -> {
+                            val destination = exportState.destination
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(RescueGreen.copy(alpha = 0.12f))
+                                    .border(1.dp, RescueGreen.copy(alpha = 0.4f), RoundedCornerShape(10.dp))
+                                    .padding(12.dp)
+                            ) {
+                                Column {
+                                    Text(
+                                        text = when (destination) {
+                                            is CvExporter.Destination.Downloads ->
+                                                "✅ Saved to Downloads"
+                                            is CvExporter.Destination.NeedsSharing ->
+                                                "✅ Your CV is ready"
+                                        },
+                                        color = RescueGreen,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 13.sp
+                                    )
+                                    Text(
+                                        text = when (destination) {
+                                            is CvExporter.Destination.Downloads ->
+                                                destination.fileName
+                                            is CvExporter.Destination.NeedsSharing ->
+                                                destination.fileName
+                                        },
+                                        color = Color.White,
+                                        fontSize = 12.sp
+                                    )
+                                    Spacer(modifier = Modifier.height(6.dp))
+                                    Text(
+                                        text = "${exportState.applied} change" +
+                                            (if (exportState.applied == 1) "" else "s") +
+                                            " applied to your CV.",
+                                        color = SlateText,
+                                        fontSize = 12.sp
+                                    )
+                                    if (exportState.notApplied.isNotEmpty()) {
+                                        Spacer(modifier = Modifier.height(6.dp))
+                                        Text(
+                                            text = "We could not find ${exportState.notApplied.size} " +
+                                                "of the suggested lines in your CV, so those are left " +
+                                                "for you to apply by hand.",
+                                            color = FireAmber,
+                                            fontSize = 12.sp,
+                                            lineHeight = 16.sp
+                                        )
+                                    }
+
+                                    if (destination is CvExporter.Destination.NeedsSharing) {
+                                        Spacer(modifier = Modifier.height(10.dp))
+                                        Button(
+                                            onClick = {
+                                                context.startActivity(
+                                                    CvExporter.shareIntent(context, destination.file)
+                                                )
+                                            },
+                                            shape = RoundedCornerShape(10.dp),
+                                            colors = ButtonDefaults.buttonColors(
+                                                containerColor = RescueTeal
+                                            )
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.IosShare,
+                                                contentDescription = null,
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Text("Save it", fontSize = 13.sp)
+                                        }
+                                    }
+
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    TextButton(
+                                        onClick = onDismissExport,
+                                        contentPadding = PaddingValues(0.dp)
+                                    ) {
+                                        Text("Do it again", color = SlateText, fontSize = 12.sp)
+                                    }
+                                }
+                            }
+                        }
+
+                        is ExportState.Failed -> {
+                            Text(
+                                text = exportState.message,
+                                color = SpicyRed,
+                                fontSize = 13.sp,
+                                lineHeight = 18.sp
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            OutlinedButton(
+                                onClick = onApplyFixes,
+                                shape = RoundedCornerShape(10.dp),
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, BorderDark)
+                            ) {
+                                Text("Try again", fontSize = 13.sp)
+                            }
+                        }
+
+                        null -> {
+                            Button(
+                                onClick = onApplyFixes,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(50.dp),
+                                shape = RoundedCornerShape(12.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = RescueTeal)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Download,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "Apply fixes & download",
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
                         }
                     }
                 }
