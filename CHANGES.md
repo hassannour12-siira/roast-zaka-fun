@@ -1,5 +1,36 @@
 # What changed in this pass
 
+## The download is a PDF now, and it opens
+
+The .docx export is gone. Two rounds of patching its XML did not make it open, so the
+format changed rather than the patch:
+
+- **It is produced by PDFBox**, the library already used for reading CVs, so the file
+  structure is not something hand-written here. That was the root problem: a .docx
+  assembled by hand passes lenient readers and fails Word.
+- **A PDF opens on any phone.** A .docx needs an office app installed. If the file was
+  being tapped in Downloads on a device with nothing that handles .docx, "won't open"
+  was never about the file at all, and a PDF fixes that case too.
+- It is also what you send a recruiter.
+
+The output was verified outside this codebase: macOS Quick Look renders it, and the
+rendered page was checked by eye for correct headings, wrapping and content. The tests
+read it back through PDFBox, cover text longer than a page, lines longer than the page
+width, unbroken strings with no spaces, accented names, and the smart quotes, dashes,
+ellipses and bullets that CVs are full of and that the standard PDF fonts cannot draw.
+
+Section headings written in capitals are detected and set in bold, so the export is not
+an undifferentiated wall of text.
+
+### On the file being much smaller than the original
+
+Unchanged and still expected: the CV arrives as a PDF, only its text survives extraction,
+and the embedded fonts, images and layout that account for most of the original size
+cannot be reconstructed from text. The export is the corrected wording in a clean
+document, not a copy of the original with edits applied.
+
+---
+
 ## The downloaded CV would not open in Word
 
 The exported .docx contained only three parts: `[Content_Types].xml`, `_rels/.rels` and

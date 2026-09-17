@@ -23,8 +23,10 @@ import java.util.Locale
  */
 object CvExporter {
 
-    private const val DOCX_MIME =
-        "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    // PDF, not .docx. A hand-rolled .docx was rejected by Word, and a .docx will not open
+    // at all on a phone with no office app installed. A PDF opens everywhere and is the
+    // format a recruiter expects.
+    private const val PDF_MIME = "application/pdf"
 
     sealed interface Destination {
         /** Landed in the device's Downloads folder. */
@@ -42,7 +44,7 @@ object CvExporter {
             .take(40)
             .ifBlank { "CV" }
         val stamp = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
-        return "${safeName}_rescued_$stamp.docx"
+        return "${safeName}_rescued_$stamp.pdf"
     }
 
     fun save(context: Context, fileName: String, bytes: ByteArray): Result<Destination> = try {
@@ -59,7 +61,7 @@ object CvExporter {
         val resolver = context.contentResolver
         val values = ContentValues().apply {
             put(MediaStore.Downloads.DISPLAY_NAME, fileName)
-            put(MediaStore.Downloads.MIME_TYPE, DOCX_MIME)
+            put(MediaStore.Downloads.MIME_TYPE, PDF_MIME)
             // Marked pending until the bytes are written, so nothing else sees a half file.
             put(MediaStore.Downloads.IS_PENDING, 1)
         }
@@ -93,7 +95,7 @@ object CvExporter {
         )
         return Intent.createChooser(
             Intent(Intent.ACTION_SEND).apply {
-                type = DOCX_MIME
+                type = PDF_MIME
                 putExtra(Intent.EXTRA_STREAM, uri)
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             },

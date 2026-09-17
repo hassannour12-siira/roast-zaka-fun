@@ -793,7 +793,7 @@ private fun RescueTabContent(
                     }
                     Text(
                         text = "We put the rewritten lines back into your own CV and save it as " +
-                            "a Word file. Nothing else is changed and nothing is invented.",
+                            "a PDF. Nothing else is changed and nothing is invented.",
                         fontSize = 12.sp,
                         color = SlateText,
                         lineHeight = 17.sp
@@ -938,7 +938,7 @@ private fun RescueTabContent(
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
-                                    text = "Apply fixes & download",
+                                    text = "Apply fixes & download PDF",
                                     fontSize = 15.sp,
                                     fontWeight = FontWeight.Bold
                                 )

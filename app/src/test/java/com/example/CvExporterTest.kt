@@ -3,7 +3,7 @@ package com.example
 import androidx.test.core.app.ApplicationProvider
 import com.example.util.CvExporter
 import com.example.util.DocumentExtractor
-import com.example.util.DocxWriter
+import com.example.util.PdfWriter
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -17,12 +17,17 @@ class CvExporterTest {
 
     private val context = ApplicationProvider.getApplicationContext<android.content.Context>()
 
+    @org.junit.Before
+    fun setUp() {
+        DocumentExtractor.initPdfSupport(context)
+    }
+
     @Test
     fun `file name is safe for a filesystem and still recognisable`() {
         val name = CvExporter.fileNameFor("José Álvarez-Ferré")
 
         assertTrue("should keep the readable part", name.contains("Jos"))
-        assertTrue(name.endsWith(".docx"))
+        assertTrue(name.endsWith(".pdf"))
         // Nothing that would break a path or upset a file picker.
         assertTrue("unsafe characters survived: $name", Regex("^[A-Za-z0-9_.-]+$").matches(name))
     }
@@ -32,7 +37,7 @@ class CvExporterTest {
         val name = CvExporter.fileNameFor("")
 
         assertTrue(name.startsWith("CV_rescued_"))
-        assertTrue(name.endsWith(".docx"))
+        assertTrue(name.endsWith(".pdf"))
     }
 
     @Test
@@ -40,20 +45,20 @@ class CvExporterTest {
         val name = CvExporter.fileNameFor("A".repeat(300))
 
         assertTrue("file name too long: ${name.length}", name.length < 80)
-        assertTrue(name.endsWith(".docx"))
+        assertTrue(name.endsWith(".pdf"))
     }
 
     @Test
     fun `saving writes a file that can be read back as a docx`() {
         val cv = "ALEX MORGAN\n\nEXPERIENCE\n- Own the front-end React codebase"
-        val bytes = DocxWriter.build(cv)
+        val bytes = PdfWriter.build(cv)
 
-        val result = CvExporter.save(context, "test_cv.docx", bytes)
+        val result = CvExporter.save(context, "test_cv.pdf", bytes)
 
         assertTrue("save failed: ${result.exceptionOrNull()?.message}", result.isSuccess)
 
-        // Whatever destination was chosen, the bytes we handed over are a readable docx.
-        val text = DocumentExtractor.extractDocx(bytes)
+        // Whatever destination was chosen, the bytes we handed over are a readable PDF.
+        val text = DocumentExtractor.extractPdf(bytes)
         assertTrue(text.contains("ALEX MORGAN"))
         assertTrue(text.contains("Own the front-end React codebase"))
     }

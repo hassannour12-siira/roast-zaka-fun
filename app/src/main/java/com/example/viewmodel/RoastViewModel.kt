@@ -21,7 +21,7 @@ import com.example.network.OpenAiAnalysisService
 import com.example.util.CvExporter
 import com.example.util.CvRewriter
 import com.example.util.DocumentExtractor
-import com.example.util.DocxWriter
+import com.example.util.PdfWriter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -392,7 +392,7 @@ class RoastViewModel(application: Application) : AndroidViewModel(application) {
                 }
 
                 val fileName = CvExporter.fileNameFor(analysis.candidate.name)
-                val bytes = DocxWriter.build(
+                val bytes = PdfWriter.build(
                     text = rewrite.text,
                     title = "${analysis.candidate.name} - CV"
                 )
