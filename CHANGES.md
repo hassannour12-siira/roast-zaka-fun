@@ -1,5 +1,46 @@
 # What changed in this pass
 
+## PDF upload: fixed properly this time
+
+**Symptom:** uploading a résumé did nothing, or failed.
+
+**Cause:** the PDF reader was hand-rolled. It pulled `(text) Tj` operators out of the file
+and hoped. That only works on uncompressed PDFs written with simple fonts. Anything
+exported from **Google Docs, Word, Canva, Pages or LaTeX** uses Type0 fonts with
+**Identity-H** encoding, where the bytes inside `(...)` are two-byte *glyph IDs*, not
+letters. Turning them back into text requires the font's ToUnicode CMap, which the parser
+knew nothing about.
+
+On a Chrome-exported CV it did not merely return junk: it **crashed with a
+StackOverflowError**, the regex backtracking over binary glyph data.
+
+Worse, the repo contained unit tests for that parser covering hex strings, TJ arrays and
+UTF-16BE, and they all passed, because they fed it synthetic strings like `(Hello) Tj`
+that no real PDF contains. Green tests, broken app.
+
+**Fix:** PDF extraction now goes through **PDFBox** (`com.tom-roush:pdfbox-android`,
+Apache-2.0), which already handles every stream filter, encoding, CMap and subset font.
+The hand-rolled parser and its synthetic tests are gone.
+
+Two details worth knowing:
+
+- `sortByPosition` is deliberately **off**. With it on, a two-column CV is read straight
+  across the page and the sidebar interleaves into the job history line by line
+  (`"SKILLS EXPERIENCE"`, `"Python, Spark, Airflow, Senior Data Engineer, Meridian..."`).
+  Content-stream order keeps each column intact. This was measured, not guessed.
+- Failure messages are now specific. A scanned PDF says the words are a picture and to
+  paste the text instead, rather than one catch-all sentence.
+
+**Cost:** the APK grows from ~23 MB to ~31 MB. That is the price of reading the files
+people actually have.
+
+**Tested against real files**, not strings: a Chrome/Skia export (the Google Docs and Word
+case), a two-column CV, a CV with accented names and smart quotes (`José Álvarez-Ferré`,
+`Zürich`), a simple uncompressed PDF, a DOCX, and 50 KB of random bytes to prove it fails
+cleanly instead of fatally. 23/23 tests pass.
+
+---
+
 Everything below was compiled and tested locally: `./gradlew assembleDebug` is clean with
 zero warnings, and `./gradlew testDebugUnitTest` is 19/19 green.
 

@@ -3,26 +3,38 @@ package com.example.util
 import android.content.Context
 import android.net.Uri
 import android.provider.OpenableColumns
+import com.tom_roush.pdfbox.android.PDFBoxResourceLoader
+import com.tom_roush.pdfbox.pdmodel.PDDocument
+import com.tom_roush.pdfbox.text.PDFTextStripper
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayInputStream
-import java.util.zip.Inflater
 import java.util.zip.ZipInputStream
 
 /**
  * Pulls plain text out of an uploaded CV.
  *
- * Three formats, three strategies:
- *  - DOCX: it is a zip; read word/document.xml and strip the markup. (Previously absent
- *    entirely, so picking a .docx fed raw zip bytes to the model as if they were a CV.)
- *  - PDF: inflate the FlateDecode content streams, then read the text-showing operators.
- *    (Previously the operators were regexed straight out of the raw file, which only ever
- *    works on uncompressed PDFs, almost none of which exist in the wild.)
- *  - Anything else: treat as text.
+ * PDF goes through PDFBox rather than anything hand-rolled. Two earlier attempts failed on
+ * real files: regexing `(text) Tj` out of the raw bytes only works on uncompressed PDFs,
+ * and inflating the streams first still produced nothing useful, because anything exported
+ * from Google Docs, Word, Canva or LaTeX uses Type0 fonts with Identity-H encoding. There
+ * the bytes inside `(...)` are two-byte glyph IDs, not characters, and turning them back
+ * into text needs the font's ToUnicode CMap. On one Chrome-exported CV the old parser did
+ * not merely return junk, it died with a StackOverflowError from regex backtracking over
+ * the binary glyph data.
+ *
+ * PDFBox already understands encodings, CMaps, subset fonts and every stream filter, so
+ * the extraction is now its problem rather than ours.
+ *
+ * DOCX stays hand-rolled because it is genuinely simple: a zip with an XML part inside.
  */
 object DocumentExtractor {
 
     private const val MIN_USEFUL_CHARS = 40
+
+    /** PDFBox needs this once per process before it touches a document. */
+    @Volatile
+    private var pdfBoxReady = false
 
     data class ExtractedDocument(
         val fileName: String,
@@ -45,12 +57,28 @@ object DocumentExtractor {
         return name
     }
 
+    /** Safe to call repeatedly; only the first call does any work. */
+    fun initPdfSupport(context: Context) {
+        if (pdfBoxReady) return
+        synchronized(this) {
+            if (pdfBoxReady) return
+            PDFBoxResourceLoader.init(context.applicationContext)
+            pdfBoxReady = true
+        }
+    }
+
     suspend fun extractTextFromUri(context: Context, uri: Uri): Result<ExtractedDocument> =
         withContext(Dispatchers.IO) {
             val fileName = getFileName(context, uri)
             try {
+                initPdfSupport(context)
+
                 val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
                     ?: return@withContext Result.failure(Exception("Cannot open that file."))
+
+                if (bytes.isEmpty()) {
+                    return@withContext Result.failure(Exception("That file is empty."))
+                }
 
                 val text = when {
                     isDocx(fileName, bytes) -> extractDocx(bytes)
@@ -59,19 +87,29 @@ object DocumentExtractor {
                 }
 
                 if (text.length < MIN_USEFUL_CHARS) {
-                    Result.failure(
-                        Exception(
-                            "We couldn't read enough text from this file. " +
-                                "If it's a scanned PDF the text is really an image, so paste the CV text instead."
-                        )
-                    )
+                    Result.failure(Exception(unreadableMessage(fileName, bytes)))
                 } else {
                     Result.success(ExtractedDocument(fileName, text, text.length))
                 }
+            } catch (e: OutOfMemoryError) {
+                Result.failure(Exception("That file is too large to read on this device."))
             } catch (e: Exception) {
                 Result.failure(Exception(e.message ?: "Failed to read that file."))
             }
         }
+
+    /** Say something specific enough to act on, rather than one catch-all sentence. */
+    private fun unreadableMessage(fileName: String, bytes: ByteArray): String = when {
+        isPdf(fileName, bytes) ->
+            "We couldn't find any text in this PDF. If it's a scan or an exported image, " +
+                "the words are a picture, so copy your CV text and paste it instead."
+        isDocx(fileName, bytes) ->
+            "We couldn't find any text in this document. Try saving it as a PDF, " +
+                "or paste your CV text instead."
+        else ->
+            "We couldn't read enough text from this file. Upload a PDF or DOCX, " +
+                "or paste your CV text instead."
+    }
 
     private fun isPdf(fileName: String, bytes: ByteArray): Boolean =
         fileName.endsWith(".pdf", ignoreCase = true) ||
@@ -82,6 +120,25 @@ object DocumentExtractor {
         fileName.endsWith(".docx", ignoreCase = true) ||
             (bytes.size >= 4 && bytes[0] == 0x50.toByte() && bytes[1] == 0x4B.toByte() &&
                 bytes[2] == 0x03.toByte() && bytes[3] == 0x04.toByte())
+
+    // ---------------------------------------------------------------- PDF
+
+    internal fun extractPdf(bytes: ByteArray): String =
+        // A PDF locked with a user password throws here, and the catch upstream turns that
+        // into a readable message. One locked only against editing still opens for reading.
+        PDDocument.load(ByteArrayInputStream(bytes)).use { document ->
+            val stripper = PDFTextStripper().apply {
+                // Content-stream order, not geometric order. Measured on a two-column CV:
+                // sorting by position reads straight across the page and interleaves the
+                // sidebar into the job history line by line ("SKILLS EXPERIENCE", "Python,
+                // Spark, Airflow, Senior Data Engineer, Meridian..."). Keeping the emitted
+                // order holds each column together, which is how CV exporters lay them out.
+                sortByPosition = false
+                paragraphStart = "\n"
+                lineSeparator = "\n"
+            }
+            tidy(stripper.getText(document))
+        }
 
     // ---------------------------------------------------------------- DOCX
 
@@ -113,170 +170,6 @@ object DocumentExtractor {
                 .replace("&quot;", "\"")
                 .replace("&apos;", "'")
         )
-    }
-
-    // ---------------------------------------------------------------- PDF
-
-    internal fun extractPdf(bytes: ByteArray): String {
-        val builder = StringBuilder()
-
-        val streams = contentStreams(bytes)
-        for (stream in streams) {
-            builder.append(readTextOperators(stream)).append('\n')
-        }
-
-        // Uncompressed PDFs put the operators straight in the file body.
-        // If contentStreams found nothing, or if they were all images/garbage, try raw.
-        if (builder.isBlank()) {
-            builder.append(readTextOperators(String(bytes, Charsets.ISO_8859_1)))
-        }
-        return tidy(builder.toString())
-    }
-
-    /** Every `stream ... endstream` body that inflates as zlib/deflate. */
-    private fun contentStreams(bytes: ByteArray): List<String> {
-        val out = mutableListOf<String>()
-        var index = 0
-
-        val streamMarker = "stream".toByteArray(Charsets.ISO_8859_1)
-        val endstreamMarker = "endstream".toByteArray(Charsets.ISO_8859_1)
-
-        while (true) {
-            val start = indexOf(bytes, streamMarker, index)
-            if (start == -1) break
-            val end = indexOf(bytes, endstreamMarker, start + streamMarker.size)
-            if (end == -1) break
-
-            // Skip the end-of-line that must follow the `stream` keyword.
-            var from = start + streamMarker.size
-            if (from < bytes.size && bytes[from] == '\r'.code.toByte()) from++
-            if (from < bytes.size && bytes[from] == '\n'.code.toByte()) from++
-
-            if (from < end) {
-                val data = bytes.copyOfRange(from, end)
-                inflate(data)?.let(out::add)
-            }
-            index = end + endstreamMarker.size
-        }
-        return out
-    }
-
-    private fun indexOf(src: ByteArray, target: ByteArray, start: Int): Int {
-        for (i in start..src.size - target.size) {
-            var found = true
-            for (j in target.indices) {
-                if (src[i + j] != target[j]) {
-                    found = false
-                    break
-                }
-            }
-            if (found) return i
-        }
-        return -1
-    }
-
-    private fun inflate(data: ByteArray): String? = try {
-        val inflater = Inflater()
-        inflater.setInput(data)
-        val buffer = ByteArray(16 * 1024)
-        val sink = StringBuilder()
-        while (!inflater.finished()) {
-            val n = inflater.inflate(buffer)
-            if (n == 0) break
-            sink.append(String(buffer, 0, n, Charsets.ISO_8859_1))
-        }
-        inflater.end()
-        sink.toString().takeIf { it.isNotEmpty() }
-    } catch (_: Exception) {
-        null // Not a deflate stream (an image, a font, or already plain). Skip it.
-    }
-
-    /** `(text) Tj` and `[(a) -200 (b)] TJ`, plus the line-positioning operators. */
-    internal fun readTextOperators(content: String): String {
-        val out = StringBuilder()
-        // Strings (literal or hex) and text-showing/positioning operators.
-        val token = Regex("""\((?:\\.|[^\\()])*\)|<[0-9A-Fa-f\s]*>|\bT[Jj]\b|\bT[Dd]\b|\bTm\b|\bT\*|'|"""")
-
-        val pending = StringBuilder()
-        for (match in token.findAll(content)) {
-            val value = match.value
-            when {
-                value.startsWith("(") ->
-                    pending.append(unescape(value.substring(1, value.length - 1)))
-                value.startsWith("<") ->
-                    pending.append(decodeHex(value.substring(1, value.length - 1)))
-                value == "Tj" || value == "TJ" || value == "'" || value == "\"" -> {
-                    out.append(pending)
-                    if (value == "'" || value == "\"") out.append('\n')
-                    pending.clear()
-                }
-                else -> {
-                    // A positioning operator: treat it as a line break.
-                    if (pending.isNotEmpty()) {
-                        out.append(pending).append('\n')
-                        pending.clear()
-                    } else if (out.isNotEmpty() && out.last() != '\n') {
-                        out.append('\n')
-                    }
-                }
-            }
-        }
-        out.append(pending)
-        return out.toString()
-    }
-
-    private fun decodeHex(hex: String): String {
-        val clean = hex.replace(Regex("\\s"), "")
-        if (clean.isEmpty()) return ""
-
-        val bytes = try {
-            val res = ByteArray((clean.length + 1) / 2)
-            for (i in 0 until clean.length step 2) {
-                val end = if (i + 2 <= clean.length) i + 2 else i + 1
-                var part = clean.substring(i, end)
-                if (part.length == 1) part += "0" // PDF spec: odd digits are zero-padded
-                res[i / 2] = part.toInt(16).toByte()
-            }
-            res
-        } catch (_: Exception) { return "" }
-
-        return when {
-            bytes.size >= 2 && bytes[0] == 0xFE.toByte() && bytes[1] == 0xFF.toByte() ->
-                String(bytes, 2, bytes.size - 2, Charsets.UTF_16BE)
-            else -> String(bytes, Charsets.ISO_8859_1)
-        }
-    }
-
-    private fun unescape(text: String): String {
-        val out = StringBuilder(text.length)
-        var i = 0
-        while (i < text.length) {
-            val c = text[i]
-            if (c != '\\') {
-                out.append(c)
-                i++
-                continue
-            }
-            if (i + 1 >= text.length) break
-            when (val next = text[i + 1]) {
-                'n', 'r' -> { out.append('\n'); i += 2 }
-                't' -> { out.append('\t'); i += 2 }
-                'b', 'f' -> i += 2
-                '(', ')', '\\' -> { out.append(next); i += 2 }
-                in '0'..'7' -> {
-                    var j = i + 1
-                    val octal = StringBuilder()
-                    while (j < text.length && octal.length < 3 && text[j] in '0'..'7') {
-                        octal.append(text[j])
-                        j++
-                    }
-                    out.append(octal.toString().toInt(8).toChar())
-                    i = j
-                }
-                else -> { out.append(next); i += 2 }
-            }
-        }
-        return out.toString()
     }
 
     // ---------------------------------------------------------------- shared
