@@ -64,7 +64,7 @@ fun MainApp(viewModel: RoastViewModel = viewModel()) {
                         Text(text = "🔥", fontSize = 22.sp)
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "CV Roast & Rescue",
+                            text = "Roastumé",
                             fontWeight = FontWeight.Black,
                             fontSize = 19.sp,
                             color = Color.White

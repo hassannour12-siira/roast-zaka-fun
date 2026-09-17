@@ -1,5 +1,36 @@
 # What changed in this pass
 
+## Renamed to Roastumé
+
+App label, top bar, share card and project name.
+
+One deliberate inconsistency: the Gradle `rootProject.name` is the ASCII `Roastume`,
+without the accent. It is not user-visible, and it ends up in generated paths and build
+artefact names where non-ASCII characters cause trouble on some filesystems and CI.
+Everything a user sees says Roastumé.
+
+## The project would not open in Android Studio
+
+`.idea/` was committed to the repo, and `.idea/misc.xml` pinned
+`project-jdk-name="jbr-25"` with `languageLevel="JDK_25"`, while `.idea/compiler.xml`
+pinned `bytecodeTargetLevel target="25"`. Those came from the machine the project was
+first created on. Anyone whose Android Studio ships a different JBR opens the project
+against a JDK that does not exist for them.
+
+`.idea/` is now ignored in full and removed from version control. Android Studio
+regenerates it per machine on first open.
+
+Note this was never specific to the `dev` branch: `dev` and `main` were the same commit
+when the problem was reported, so it was present on both, and had been since the initial
+commit.
+
+If it still fails to open after pulling, the next thing to check is the Gradle JDK, under
+Settings > Build, Execution, Deployment > Build Tools > Gradle > Gradle JDK. The build
+also asks for a Java 25 toolchain in `gradle/gradle-daemon-jvm.properties`, which Gradle
+will download by itself, but only if it can reach the network.
+
+---
+
 ## Removed the LinkedIn input
 
 The LinkedIn tab is gone. It never fetched anything: LinkedIn blocks automated profile

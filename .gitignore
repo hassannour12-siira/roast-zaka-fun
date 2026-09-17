@@ -2,12 +2,10 @@
 .gradle
 .kotlin
 /local.properties
-/.idea/caches
-/.idea/libraries
-/.idea/modules.xml
-/.idea/workspace.xml
-/.idea/navEditor.xml
-/.idea/assetWizardSettings.xml
+# Ignore the whole IDE folder. It used to be committed, and .idea/misc.xml pinned
+# project-jdk-name="jbr-25", so the project failed to open for anyone whose Android
+# Studio ships a different JBR. Android Studio regenerates all of it per machine.
+/.idea/
 .DS_Store
 /build
 /captures

@@ -40,7 +40,7 @@ fun ShareCardDialog(
         ?: "Apparently 'responsible for' is not a personality trait."
 
     val shareText = """
-🔥 MY CV GOT ROASTED by AI at CV Roast & Rescue!
+🔥 MY CV GOT ROASTED by Roastumé!
 
 Score: ${result.scores.overall}/100 (${result.scores.tierLabel})
 Biggest Problem: "${result.roast.biggestRedFlag}"
@@ -174,7 +174,7 @@ Get roasted. Get rescued. Get hired.
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = "CV Roast & Rescue 🛟",
+                                text = "Roastumé 🛟",
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = RescueCyan

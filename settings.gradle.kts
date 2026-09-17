@@ -22,6 +22,6 @@ dependencyResolutionManagement {
   }
 }
 
-rootProject.name = "CV Roast & Rescue"
+rootProject.name = "Roastume"
 
 include(":app")
