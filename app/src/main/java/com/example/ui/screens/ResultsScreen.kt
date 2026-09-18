@@ -712,58 +712,61 @@ private fun RescueTabContent(
             }
         }
 
-        // Fix These First (Top 3 highest impact improvements)
-        item {
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = SurfaceDark)
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(imageVector = Icons.Default.PriorityHigh, contentDescription = null, tint = FireAmber)
-                        Spacer(modifier = Modifier.width(6.dp))
+        // Only shown when the model actually returned fixes; the heading counts them.
+        if (result.rescue.topFixes.isNotEmpty()) {
+            // Fix These First (the highest impact improvements the model returned)
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = SurfaceDark)
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(imageVector = Icons.Default.PriorityHigh, contentDescription = null, tint = FireAmber)
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "${fixesHeading(result.rescue.topFixes.size)} 🎯",
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                        }
                         Text(
-                            text = "Fix these three first 🎯",
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White
+                            text = "Do these and your CV improves more than anything else on this page.",
+                            fontSize = 12.sp,
+                            color = SlateText
                         )
-                    }
-                    Text(
-                        text = "Do these and your CV improves more than anything else on this page.",
-                        fontSize = 12.sp,
-                        color = SlateText
-                    )
-                    Spacer(modifier = Modifier.height(10.dp))
-                    result.rescue.topFixes.forEachIndexed { index, fix ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 6.dp),
-                            verticalAlignment = Alignment.Top
-                        ) {
-                            Box(
+                        Spacer(modifier = Modifier.height(10.dp))
+                        result.rescue.topFixes.forEachIndexed { index, fix ->
+                            Row(
                                 modifier = Modifier
-                                    .size(24.dp)
-                                    .clip(CircleShape)
-                                    .background(FlameOrange),
-                                contentAlignment = Alignment.Center
+                                    .fillMaxWidth()
+                                    .padding(vertical = 6.dp),
+                                verticalAlignment = Alignment.Top
                             ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(24.dp)
+                                        .clip(CircleShape)
+                                        .background(FlameOrange),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = "${index + 1}",
+                                        color = Color.White,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(10.dp))
                                 Text(
-                                    text = "${index + 1}",
-                                    color = Color.White,
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold
+                                    text = fix,
+                                    fontSize = 13.sp,
+                                    color = Color(0xFFE2E8F0),
+                                    lineHeight = 18.sp
                                 )
                             }
-                            Spacer(modifier = Modifier.width(10.dp))
-                            Text(
-                                text = fix,
-                                fontSize = 13.sp,
-                                color = Color(0xFFE2E8F0),
-                                lineHeight = 18.sp
-                            )
                         }
                     }
                 }
@@ -1231,4 +1234,26 @@ private fun RescueTabContent(
             }
         }
     }
+}
+
+/**
+ * Heading for the "fix these first" card. The model does not always return exactly three
+ * fixes, so the number tracks however many are actually listed underneath.
+ */
+internal fun fixesHeading(count: Int): String = when (count) {
+    1 -> "Fix this one first"
+    else -> "Fix these ${spelledOutCount(count)} first"
+}
+
+private fun spelledOutCount(count: Int): String = when (count) {
+    2 -> "two"
+    3 -> "three"
+    4 -> "four"
+    5 -> "five"
+    6 -> "six"
+    7 -> "seven"
+    8 -> "eight"
+    9 -> "nine"
+    10 -> "ten"
+    else -> count.toString()
 }

@@ -27,6 +27,7 @@ import com.example.ui.theme.*
 @Composable
 fun LoadingScreen(
     currentMessage: String,
+    isJobAd: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     val infiniteTransition = rememberInfiniteTransition(label = "pulse")
@@ -104,7 +105,7 @@ fun LoadingScreen(
             Spacer(modifier = Modifier.height(28.dp))
 
             Text(
-                text = "CV Roast in Progress",
+                text = if (isJobAd) "JD Roast In Progress" else "CV Roast in Progress",
                 fontSize = 24.sp,
                 fontWeight = FontWeight.Black,
                 color = Color.White
@@ -113,7 +114,11 @@ fun LoadingScreen(
             Spacer(modifier = Modifier.height(8.dp))
 
             Text(
-                text = "Our AI recruiter is actively analyzing your resume...",
+                text = if (isJobAd) {
+                    "Our AI recruiter is actively analyzing your job advert..."
+                } else {
+                    "Our AI recruiter is actively analyzing your resume..."
+                },
                 fontSize = 14.sp,
                 color = SlateText,
                 textAlign = TextAlign.Center

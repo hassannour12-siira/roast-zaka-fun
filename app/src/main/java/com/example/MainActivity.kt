@@ -26,6 +26,7 @@ import com.example.ui.screens.ResultsScreen
 import com.example.ui.theme.DeepCharcoal
 import com.example.ui.theme.MyApplicationTheme
 import com.example.ui.theme.SurfaceDark
+import com.example.viewmodel.AppMode
 import com.example.viewmodel.RoastViewModel
 
 class MainActivity : ComponentActivity() {
@@ -52,6 +53,7 @@ fun MainApp(viewModel: RoastViewModel = viewModel()) {
     val previousScore by viewModel.previousScore.collectAsState()
     val cvText by viewModel.cvText.collectAsState()
     val jobAdResult by viewModel.jobAdResult.collectAsState()
+    val appMode by viewModel.appMode.collectAsState()
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
@@ -94,7 +96,10 @@ fun MainApp(viewModel: RoastViewModel = viewModel()) {
         ) {
             when {
                 isAnalyzing -> {
-                    LoadingScreen(currentMessage = loadingMessage)
+                    LoadingScreen(
+                        currentMessage = loadingMessage,
+                        isJobAd = appMode == AppMode.ROAST_JOB_AD
+                    )
                 }
                 analysisResult != null -> {
                     ResultsScreen(

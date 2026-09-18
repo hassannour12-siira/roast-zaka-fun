@@ -426,7 +426,7 @@ fun JobAdResultsScreen(
                                 Text(text = "🛟", fontSize = 18.sp)
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
-                                    text = "Fix these three first",
+                                    text = fixesHeading(result.rescue.topFixes.size),
                                     fontSize = 15.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = Color.White
